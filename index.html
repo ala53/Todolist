@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Todo List App (MDC Enhanced)</title>
+<!-- MDC Web CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@material/web@latest/dist/material-web.min.css">
+<style>
+body { font-family: Roboto, sans-serif; margin:0; overflow-x:hidden; }
+header { display:flex; align-items:center; padding:0.5em; background:#6200ee; color:#fff; }
+header h1 { flex:1; font-size:1.2rem; margin:0; }
+.menu { position:fixed; top:0; left:0; width:300px; height:100%; background:#fff; z-index:1000; overflow-y:auto; transform:translateX(-100%); transition: transform 0.3s ease; box-shadow:2px 0 5px rgba(0,0,0,0.2); padding:1em; }
+.menu.show { transform:translateX(0); }
+.overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.3); z-index:900; }
+.overlay.show { display:block; }
+.list-item { display:flex; align-items:center; justify-content:space-between; padding:0.5em; border:1px solid #ccc; border-radius:4px; margin-bottom:0.5em; background:#fafafa; cursor:grab; }
+.list-item.dragging { opacity:0.5; }
+.repeat-toggle { display:flex; gap:0.3em; margin-bottom:0.5em; flex-wrap:wrap; }
+.repeat-toggle button { flex:1; min-width:30px; }
+.repeat-toggle button.active { background:#6200ee; color:#fff; }
+.completion-tag { border-radius:4px; padding:0.2em 0.4em; color:#fff; font-size:0.8em; margin-left:0.5em; }
+#trash { position:fixed; bottom:1em; right:1em; width:60px; height:60px; background:#e53935; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; color:#fff; z-index:1001; }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="mdc-icon-button material-icons" onclick="toggleMenu()">menu</button>
+  <h1>Todo List</h1>
+</header>
+
+<div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<nav id="menu" class="menu">
+  <label>Date: <input id="menuDate" type="date"></label>
+
+  <h3>Create New List</h3>
+  <input id="newListName" placeholder="List name" class="mdc-text-field__input">
+  <select id="newListType" class="mdc-select__native-control">
+    <option value="once">One-time</option>
+    <option value="indef">Indefinite</option>
+    <option value="future">Future</option>
+    <option value="repeat">Repeats</option>
+  </select>
+  <div id="menuDaysInput" class="repeat-toggle" style="display:none">
+    <button type="button" data-day="0">Sun</button>
+    <button type="button" data-day="1">Mon</button>
+    <button type="button" data-day="2">Tue</button>
+    <button type="button" data-day="3">Wed</button>
+    <button type="button" data-day="4">Thu</button>
+    <button type="button" data-day="5">Fri</button>
+    <button type="button" data-day="6">Sat</button>
+  </div>
+  <button class="mdc-button mdc-button--raised" onclick="createList()">Create List</button>
+
+  <h3>Lists for Selected Date</h3>
+  <div id="menuLists"></div>
+
+  <h3 id="deletedTitle" style="display:none">Deleted Lists</h3>
+  <div id="deletedLists"></div>
+</nav>
+
+<main style="padding:1em">
+  <div id="lists"></div>
+  <h2>Metrics</h2>
+  <div id="metrics"></div>
+  <h3>Last 7 Days</h3>
+  <div id="weekMetrics"></div>
+</main>
+
+<div id="trash">🗑️</div>
+
+<!-- MDC JS -->
+<script src="https://cdn.jsdelivr.net/npm/@material/web@latest/dist/material-web.min.js"></script>
+
+<script>
+// STORAGE
+const storage={save(k,v){localStorage.setItem(k,JSON.stringify(v));},load(k){try{return JSON.parse(localStorage.getItem(k)||"[]");}catch(e){return[];}}};
+let lists=storage.load("lists"),states=storage.load("states");
+let deletedLists=[];
+
+// DATE HELPERS
+function formatDateLocal(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`;}
+function parseYMDToDate(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function todayStr(){return formatDateLocal(new Date());}
+
+// MENU TOGGLE
+function toggleMenu(){document.getElementById('menu').classList.toggle('show');document.getElementById('overlay').classList.toggle('show');}
+
+// LIST STATE HELPERS
+function getState(listId,date){let st=states.find(s=>s.listId===listId&&s.date===date);if(!st){st={listId,date,completed:{}};states.push(st);storage.save("states",states);}return st;}
+function isActive(list,dateObj){const d=formatDateLocal(dateObj);if(list.type==="future"&&d<list.start) return false;if(d<list.start) return false;if(list.end&&d>list.end) return false;if(list.daysOfWeek&&!list.daysOfWeek.includes(dateObj.getDay())) return false;return true;}
+function getCompletion(list,dateStr){const st=getState(list.id,dateStr);if(list.items.length===0) return 0;let done=0;list.items.forEach(it=>{if(st.completed[it.id]) done++;});return Math.round((done/list.items.length)*100);}
+function completionColor(p){if(p<=33) return 'red'; else if(p<=66) return 'orange'; else return 'green';}
+
+// CRUD & UX
+function createList(){
+  const name=document.getElementById('newListName').value.trim();
+  if(!name) return;
+  const type=document.getElementById('newListType').value;
+  const date=document.getElementById('menuDate').value||todayStr();
+  const days=[...document.querySelectorAll('#menuDaysInput button.active')].map(b=>+b.dataset.day);
+  let start=date,end=null,daysOfWeek=null;
+  if(type==="once") end=date;
+  if(type==="repeat") daysOfWeek=days.length?days:null;
+  const list={id:Date.now()+Math.floor(Math.random()*1000),name,items:[],start,end,daysOfWeek,type};
+  lists.push(list);storage.save("lists",lists);
+  document.getElementById('newListName').value="";
+  renderMenu();renderMain();
+}
+function deleteList(listId){
+  const dateStr=document.getElementById('menuDate').value||todayStr();
+  const list=lists.find(l=>l.id===listId);
+  if(!list) return;
+  if(!confirm(`Delete list "${list.name}"?`)) return;
+  if(dateStr < list.start) return;
+  lists=lists.filter(l=>l.id!==listId);
+  deletedLists.push(list);
+  storage.save("lists",lists);
+  renderMenu();renderMain();
+}
+function undoDelete(){if(deletedLists.length===0) return;const restored=deletedLists.pop();lists.push(restored);storage.save("lists",lists);renderMenu();renderMain();}
+
+// Toggle repeat buttons
+document.querySelectorAll('#menuDaysInput button').forEach(b=>{
+  b.onclick=()=>b.classList.toggle('active');
+});
+
+// Menu type change
+document.getElementById('newListType').onchange=function(){
+  document.getElementById('menuDaysInput').style.display=this.value==="repeat"?"flex":"none";
+};
+
+// Menu date change
+document.getElementById('menuDate').onchange=function(){renderMenu();renderMain();};
+
+// RENDER MENU
+function renderMenu(){
+  const dateStr=document.getElementById('menuDate').value||todayStr();
+  const container=document.getElementById('menuLists');container.innerHTML="";
+  lists.filter(l=>isActive(l,parseYMDToDate(dateStr))).forEach(l=>{
+    const div=document.createElement('div');
+    div.style.display="flex"; div.style.alignItems="center"; div.style.justifyContent="space-between"; div.style.margin="0.3em 0";
+    const nameSpan=document.createElement('span'); nameSpan.textContent=l.name; div.appendChild(nameSpan);
+    const delBtn=document.createElement('button'); delBtn.textContent="❌"; delBtn.onclick=()=>deleteList(l.id); div.appendChild(delBtn);
+    container.appendChild(div);
+  });
+
+  // Deleted lists
+  const deletedContainer=document.getElementById('deletedLists');
+  const deletedTitle=document.getElementById('deletedTitle');
+  if(deletedLists.length>0){ deletedTitle.style.display="block"; deletedContainer.innerHTML=""; deletedLists.forEach(d=>{
+    const div=document.createElement('div'); div.style.display="flex"; div.style.alignItems="center"; div.style.justifyContent="space-between";
+    const span=document.createElement('span'); span.textContent=d.name; div.appendChild(span);
+    const restore=document.createElement('button'); restore.textContent="↩️"; restore.onclick=undoDelete; div.appendChild(restore);
+    deletedContainer.appendChild(div);
+  });}else{ deletedTitle.style.display="none"; deletedContainer.innerHTML=""; }
+}
+
+// RENDER MAIN
+function renderMain(){
+  const dateStr=document.getElementById('menuDate').value||todayStr();
+  const container=document.getElementById('lists'); container.innerHTML="";
+  lists.filter(l=>isActive(l,parseYMDToDate(dateStr))).forEach(l=>{
+    const listDiv=document.createElement('div'); listDiv.style.marginBottom="1em";
+    const h3=document.createElement('h3'); h3.textContent=l.name; listDiv.appendChild(h3);
+
+    const ul=document.createElement('div');
+    ul.style.display="flex"; ul.style.flexDirection="column"; ul.style.gap="0.3em";
+
+    l.items.forEach(item=>{
+      const li=document.createElement('div'); li.className="list-item"; li.draggable=true;
+      const checkbox=document.createElement('input'); checkbox.type="checkbox"; checkbox.checked=!!getState(l.id,dateStr).completed[item.id];
+      checkbox.onclick=(e)=>{e.stopPropagation(); toggleItem(l.id,item.id,dateStr);};
+      li.appendChild(checkbox);
+      const span=document.createElement('span'); span.textContent=item.text;
+      let pressTimer=null;
+      span.addEventListener('mousedown',()=>{pressTimer=setTimeout(()=>{editItem(l.id,item.id,span);},500);});
+      span.addEventListener('mouseup',()=>{clearTimeout(pressTimer);});
+      li.appendChild(span);
+
+      // Drag events
+      li.addEventListener('dragstart', e=>{li.classList.add('dragging'); e.dataTransfer.setData('text/plain', JSON.stringify({listId:l.id,itemId:item.id}));});
+      li.addEventListener('dragend', ()=>{li.classList.remove('dragging');});
+
+      ul.appendChild(li);
+    });
+
+    // Drag target: trash
+    const trash=document.getElementById('trash');
+    trash.ondragover=e=>e.preventDefault();
+    trash.ondrop=e=>{
+      const data=JSON.parse(e.dataTransfer.getData('text/plain'));
+      const list=lists.find(li=>li.id===data.listId);
+      list.items=list.items.filter(it=>it.id!==data.itemId);
+      storage.save("lists",lists); renderMain();
+    };
+
+    listDiv.appendChild(ul);
+
+    container.appendChild(listDiv);
+  });
+}
+
+// ITEM EDITING
+function editItem(listId,itemId(span)){
+  const l=lists.find(li=>li.id===listId);
+  const item=l.items.find(it=>it.id===itemId);
+  const input=document.createElement('input'); input.value=item.text;
+  input.onblur=()=>{item.text=input.value; storage.save("lists",lists); renderMain();};
+  input.onkeydown=e=>{if(e.key==='Enter'){item.text=input.value; storage.save("lists",lists); renderMain();}};
+  span.replaceWith(input); input.focus();
+}
+
+// TOGGLE ITEM
+function toggleItem(listId,itemId,date){
+  const st=getState(listId,date);
+  st.completed[itemId]=!st.completed[itemId];
+  storage.save("states",states); renderMain(); renderMenu();
+}
+
+// INIT
+window.onload=function(){
+  document.getElementById('menuDate').value=todayStr();
+  renderMenu(); renderMain();
+};
+</script>
+
+</body>
+</html>
