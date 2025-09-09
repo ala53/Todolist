@@ -1,172 +1,383 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Todo List App (MDC Fixed)</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@material/web@latest/dist/material-web.min.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Todo List App</title>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
-body { font-family: Roboto, sans-serif; margin:0; overflow-x:hidden; }
-header { display:flex; align-items:center; padding:0.5em; background:#6200ee; color:#fff; }
-header h1 { flex:1; font-size:1.2rem; margin:0; }
-.menu { position:fixed; top:0; left:0; width:300px; height:100%; background:#fff; z-index:1000; overflow-y:auto; transform:translateX(-100%); transition: transform 0.3s ease; box-shadow:2px 0 5px rgba(0,0,0,0.2); padding:1em; }
-.menu.show { transform:translateX(0); }
-.overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.3); z-index:900; }
-.overlay.show { display:block; }
-.list-item { display:flex; align-items:center; justify-content:space-between; padding:0.5em; border:1px solid #ccc; border-radius:4px; margin-bottom:0.5em; background:#fafafa; cursor:grab; }
-.list-item.dragging { opacity:0.5; }
-.repeat-toggle { display:flex; gap:0.3em; margin-bottom:0.5em; flex-wrap:wrap; }
-.repeat-toggle button { flex:1; min-width:30px; }
-.repeat-toggle button.active { background:#6200ee; color:#fff; }
-.completion-tag { border-radius:4px; padding:0.2em 0.4em; color:#fff; font-size:0.8em; margin-left:0.5em; }
-#trash { position:fixed; bottom:1em; right:1em; width:60px; height:60px; background:#e53935; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; color:#fff; z-index:1001; }
+body { font-family: Roboto, sans-serif; margin:0; background:#f0f0f0; }
+header { background:#6200ee; color:#fff; padding:0.5em; display:flex; align-items:center; justify-content:space-between; }
+header input[type=date] { font-size:1em; padding:0.3em; border-radius:4px; border:none; }
+
+#metrics { margin:1em; height:1.2em; border-radius:10px; background:#ddd; overflow:hidden; }
+#metrics > div { height:100%; border-radius:10px; text-align:right; padding-right:0.5em; color:white; font-weight:bold; line-height:1.2em; }
+
+.list { background:#fff; border-radius:6px; padding:1em; margin:1em 0; border:1px solid #ccc; }
+.list-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5em; }
+.list-header button { border:none; background:none; font-size:1em; cursor:pointer; color:#f44336; }
+
+.editable-text { display:inline-block; cursor:pointer; user-select:none; padding:0.2em 0.3em; }
+.completed { text-decoration:line-through; color:gray; }
+
+.new-item { border:1px dashed #ccc; padding:0.4em; margin-top:0.4em; border-radius:4px; background:#fafafa; }
+.new-item input { width:100%; border:none; outline:none; background:transparent; font-size:1em; }
+
+#newListInline { padding-bottom:2em; }
+#newListInlineOptions button { padding:0.4em 0.6em; border:1px solid #6200ee; border-radius:4px; background:#fff; cursor:pointer; }
+
+/* Day toggle buttons */
+.day-toggle {
+  display:inline-block;
+  padding:0.3em 0.5em;
+  border:1px solid #6200ee;
+  border-radius:4px;
+  cursor:pointer;
+  user-select:none;
+  background:#fff;
+  color:#6200ee;
+  transition:background 0.2s, color 0.2s;
+  text-align:center;
+  min-width:2em;
+}
+.day-toggle.active { background:#6200ee; color:#fff; }
+.list-days { margin-top:0.5em; display:flex; flex-wrap:wrap; gap:0.3em; }
+.list-days .day-toggle { border:1px solid #999; background:#eee; color:#333; cursor:default; }
+.list-days .day-toggle.active { background:#6200ee; color:#fff; }
+
+/* Tasks without bullets */
+.task { display:flex; align-items:center; margin-bottom:0.3em; }
+.task input[type=checkbox] { margin-right:0.4em; }
+
+/* Toast notifications */
+#toastContainer { position:fixed; top:1em; left:50%; transform:translateX(-50%); z-index:1000; }
+.toast {
+  background:#f44336; color:white; padding:0.5em 1em; margin-top:0.3em;
+  border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,0.3); opacity:0; transition:opacity 0.3s ease;
+}
 </style>
 </head>
 <body>
-
 <header>
-  <button onclick="toggleMenu()">☰</button>
-  <h1>Todo List</h1>
+  <div>Todo List</div>
+  <input type="date" id="currentDate">
 </header>
 
-<div class="overlay" id="overlay" onclick="toggleMenu()"></div>
-
-<nav id="menu" class="menu">
-  <label>Date: <input id="menuDate" type="date"></label>
-
-  <h3>Create New List</h3>
-  <input id="newListName" placeholder="List name">
-  <select id="newListType">
-    <option value="once">One-time</option>
-    <option value="indef">Indefinite</option>
-    <option value="future">Future</option>
-    <option value="repeat">Repeats</option>
-  </select>
-  <div id="menuDaysInput" class="repeat-toggle" style="display:none">
-    <button type="button" data-day="0">Sun</button>
-    <button type="button" data-day="1">Mon</button>
-    <button type="button" data-day="2">Tue</button>
-    <button type="button" data-day="3">Wed</button>
-    <button type="button" data-day="4">Thu</button>
-    <button type="button" data-day="5">Fri</button>
-    <button type="button" data-day="6">Sat</button>
-  </div>
-  <button onclick="createList()">Create List</button>
-
-  <h3>Lists for Selected Date</h3>
-  <div id="menuLists"></div>
-
-  <h3 id="deletedTitle" style="display:none">Deleted Lists</h3>
-  <div id="deletedLists"></div>
-</nav>
+<div id="metrics"><div style="width:0%;background:#4caf50;">0%</div></div>
 
 <main style="padding:1em">
   <div id="lists"></div>
-  <h2>Metrics</h2>
-  <div id="metrics"></div>
-  <h3>Last 7 Days</h3>
-  <div id="weekMetrics"></div>
+
+  <!-- Inline New List (bottom of lists) -->
+  <div id="newListInline" style="margin-top:0.6em;">
+    <div class="new-item">
+      <input type="text" id="newListInlineName" placeholder="New list..." />
+    </div>
+
+    <div id="newListInlineOptions" style="display:none; margin-top:0.4em; background:#fff; border:1px solid #ccc; border-radius:6px; padding:0.6em;">
+      <label style="display:block; margin-bottom:0.3em;">
+        Type:
+        <select id="newListInlineType" style="margin-left:0.4em;">
+          <option value="once">One-time</option>
+          <option value="untilCompleted">Until Completed</option>
+          <option value="future">Future</option>
+          <option value="repeat">Repeats</option>
+        </select>
+      </label>
+
+      <div id="newListInlineFuture" style="display:none; margin-bottom:0.4em;">
+        Start date: <input type="date" id="newListInlineStart">
+      </div>
+
+      <div id="newListInlineDays" style="display:none;">
+        <div style="margin-bottom:0.2em;">Repeat on:</div>
+        <div class="list-days" id="newListInlineDaysButtons"></div>
+      </div>
+
+      <div style="margin-top:0.6em; display:flex; gap:0.4em;">
+        <button id="newListInlineCreate">Create</button>
+        <button id="newListInlineCancel" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
 </main>
 
-<div id="trash">🗑️</div>
+<div id="toastContainer"></div>
 
 <script>
 // STORAGE
 const storage={save(k,v){localStorage.setItem(k,JSON.stringify(v));},load(k){try{return JSON.parse(localStorage.getItem(k)||"[]");}catch(e){return[];}}};
-let lists=storage.load("lists"),states=storage.load("states"),deletedLists=[];
+let lists=storage.load("lists"),states=storage.load("states");
 
 // DATE HELPERS
-function formatDateLocal(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`;}
-function parseYMDToDate(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
-function todayStr(){return formatDateLocal(new Date());}
+function formatDate(d){return d.toISOString().slice(0,10);}
+function parseYMDToDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function todayStr(){return formatDate(new Date());}
 
-// MENU TOGGLE
-function toggleMenu(){document.getElementById('menu').classList.toggle('show');document.getElementById('overlay').classList.toggle('show');}
-
-// LIST STATE HELPERS
-function getState(listId,date){let st=states.find(s=>s.listId===listId&&s.date===date);if(!st){st={listId,date,completed:{}};states.push(st);storage.save("states",states);}return st;}
-function isActive(list,dateObj){const d=formatDateLocal(dateObj);if(list.type==="future"&&d<list.start) return false;if(d<list.start) return false;if(list.end&&d>list.end) return false;if(list.daysOfWeek&&!list.daysOfWeek.includes(dateObj.getDay())) return false;return true;}
-function toggleItem(listId,itemId,date){const st=getState(listId,date);st.completed[itemId]=!st.completed[itemId];storage.save("states",states); renderMain(); renderMenu();}
-function completionColor(p){if(p<=33) return 'red'; else if(p<=66) return 'orange'; else return 'green';}
-
-// CRUD
-function createList(){
-  const name=document.getElementById('newListName').value.trim();
-  if(!name) return;
-  const type=document.getElementById('newListType').value;
-  const date=document.getElementById('menuDate').value||todayStr();
-  const days=[...document.querySelectorAll('#menuDaysInput button.active')].map(b=>+b.dataset.day);
-  let start=date,end=null,daysOfWeek=null;if(type==="once") end=date;if(type==="repeat") daysOfWeek=days.length?days:null;
-  lists.push({id:Date.now(),name,items:[],start,end,daysOfWeek,type});
-  storage.save("lists",lists); document.getElementById('newListName').value=""; renderMenu(); renderMain();
+// TOAST
+function showToast(message){
+  const container=document.getElementById('toastContainer');
+  const toast=document.createElement('div');
+  toast.className='toast';
+  toast.textContent=message;
+  container.appendChild(toast);
+  requestAnimationFrame(()=>{toast.style.opacity='1';});
+  setTimeout(()=>{
+    toast.style.opacity='0';
+    toast.addEventListener('transitionend',()=>toast.remove());
+  },3000);
 }
-function deleteList(listId){if(!confirm("Delete list?")) return; const idx=lists.findIndex(l=>l.id===listId); if(idx>=0){deletedLists.push(lists[idx]); lists.splice(idx,1); storage.save("lists",lists); renderMenu(); renderMain();}}
-function undoDelete(){if(deletedLists.length===0) return; lists.push(deletedLists.pop()); storage.save("lists",lists); renderMenu(); renderMain();}
 
-// REPEAT DAY TOGGLE
-document.querySelectorAll('#menuDaysInput button').forEach(b=>b.onclick=()=>b.classList.toggle('active'));
+// STATE
+function getState(list, dateStr) {
+  const keyDate = list.type==='untilCompleted' ? 'persistent' : dateStr;
+  let st = states.find(s => s.listId===list.id && s.date===keyDate);
+  if(!st) {
+    st = { listId:list.id, date:keyDate, completed:{}, completedAt:null };
+    states.push(st);
+    storage.save("states", states);
+  } else if(st.completedAt===undefined){ // migrate older state
+    st.completedAt = null;
+    storage.save("states", states);
+  }
+  return st;
+}
 
-// TYPE CHANGE
-document.getElementById('newListType').onchange=function(){document.getElementById('menuDaysInput').style.display=this.value==="repeat"?"flex":"none";}
+// ACTIVE?
+function isActive(list, dateObj){
+  const dStr = formatDate(dateObj);
+  if(list.type==='future' && dStr<list.start) return false;
+  if(dStr<list.start) return false;
+  if(list.end && dStr>list.end) return false;
+  if(list.daysOfWeek && !list.daysOfWeek.includes(dateObj.getDay())) return false;
 
-// MENU DATE
-document.getElementById('menuDate').onchange=function(){renderMenu(); renderMain();}
+  if(list.type==='untilCompleted') {
+    if(list.items.length===0) return true;
+    const st = getState(list, null);
+    if(st.completedAt && dStr > st.completedAt) return false; // hide only after completion day
+  }
+  return true;
+}
 
-// RENDER MENU
-function renderMenu(){
-  const dateStr=document.getElementById('menuDate').value||todayStr();
-  const container=document.getElementById('menuLists'); container.innerHTML="";
-  lists.filter(l=>isActive(l,parseYMDToDate(dateStr))).forEach(l=>{
-    const div=document.createElement('div'); div.style.display="flex"; div.style.justifyContent="space-between";
-    div.textContent=l.name; 
-    const del=document.createElement('button'); del.textContent="❌"; del.onclick=()=>deleteList(l.id); div.appendChild(del);
+// RENDER
+function renderLists(){
+  const container=document.getElementById('lists');
+  container.innerHTML="";
+  const dateStr=document.getElementById('currentDate').value || todayStr();
+  const dateObj=parseYMDToDate(dateStr);
+  let total=0,done=0;
+
+  lists.filter(l=>isActive(l,dateObj)).forEach(list=>{
+    const div=document.createElement('div'); div.className='list';
+
+    const header=document.createElement('div'); header.className='list-header';
+    const nameSpan=makeEditableText(list,'name');
+    header.appendChild(nameSpan);
+    const delBtn=document.createElement('button'); delBtn.textContent="❌";
+    delBtn.onclick=()=>{if(confirm("Delete this list?")){lists=lists.filter(x=>x.id!==list.id);storage.save("lists",lists); renderLists();}};
+    header.appendChild(delBtn);
+    div.appendChild(header);
+
+    list.items.forEach(it=>{
+      const taskDiv=document.createElement('div'); taskDiv.className='task';
+      const cb=document.createElement('input'); cb.type='checkbox';
+      const st = getState(list, dateStr);
+      cb.checked = !!st.completed[it.id];
+      cb.onchange=()=>{
+        st.completed[it.id]=cb.checked;
+        if(list.type==='untilCompleted'){
+          const allCompleted = list.items.length>0 && list.items.every(x => st.completed[x.id]);
+          st.completedAt = allCompleted ? dateStr : null;
+        }
+        storage.save("states",states);
+        renderLists();
+      };
+      taskDiv.appendChild(cb);
+      taskDiv.appendChild(makeEditableText(it,'text',list,dateStr));
+      div.appendChild(taskDiv);
+      total++; if(cb.checked) done++;
+    });
+
+    if(dateStr>=todayStr()) div.appendChild(newItemInput(list.id));
+
+    if(list.type==='repeat' && list.daysOfWeek && list.daysOfWeek.length>0){
+      const dayContainer=document.createElement('div'); dayContainer.className='list-days';
+      for(let i=0;i<7;i++){
+        const dayDiv=document.createElement('div'); dayDiv.className='day-toggle';
+        dayDiv.textContent=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i];
+        if(list.daysOfWeek.includes(i)) dayDiv.classList.add('active');
+        dayContainer.appendChild(dayDiv);
+      }
+      div.appendChild(dayContainer);
+    }
+
     container.appendChild(div);
   });
-  const deletedContainer=document.getElementById('deletedLists'); deletedContainer.innerHTML="";
-  if(deletedLists.length>0){document.getElementById('deletedTitle').style.display="block"; deletedLists.forEach(d=>{
-    const div=document.createElement('div'); div.style.display="flex"; div.style.justifyContent="space-between";
-    div.textContent=d.name; const undo=document.createElement('button'); undo.textContent="↩️"; undo.onclick=undoDelete; div.appendChild(undo); deletedContainer.appendChild(div);
-  });}else{document.getElementById('deletedTitle').style.display="none";}
+
+  const pct = total?Math.round(done/total*100):0;
+  const metricDiv = document.querySelector('#metrics > div');
+  metricDiv.style.width = pct + '%';
+  metricDiv.textContent = pct + '%';
+  if(pct<50) metricDiv.style.background='#f44336';
+  else if(pct<80) metricDiv.style.background='#ff9800';
+  else metricDiv.style.background='#4caf50';
 }
 
-// RENDER MAIN
-function renderMain(){
-  const dateStr=document.getElementById('menuDate').value||todayStr();
-  const container=document.getElementById('lists'); container.innerHTML="";
-  lists.filter(l=>isActive(l,parseYMDToDate(dateStr))).forEach(l=>{
-    const div=document.createElement('div'); div.style.marginBottom="1em";
-    const h3=document.createElement('h3'); h3.textContent=l.name; div.appendChild(h3);
-    const ul=document.createElement('div'); ul.style.display="flex"; ul.style.flexDirection="column"; ul.style.gap="0.3em";
-    l.items.forEach(it=>{
-      const li=document.createElement('div'); li.className="list-item"; li.draggable=true;
-      const cb=document.createElement('input'); cb.type="checkbox"; cb.checked=!!getState(l.id,dateStr).completed[it.id]; cb.onclick=e=>{e.stopPropagation(); toggleItem(l.id,it.id,dateStr);}; li.appendChild(cb);
-      const span=document.createElement('span'); span.textContent=it.text;
-      let pressTimer=null; span.addEventListener('mousedown',()=>{pressTimer=setTimeout(()=>{editItem(l.id,it.id,span)},500);}); span.addEventListener('mouseup',()=>clearTimeout(pressTimer));
-      li.appendChild(span);
-      li.addEventListener('dragstart',e=>{li.classList.add('dragging'); e.dataTransfer.setData('text/plain', JSON.stringify({listId:l.id,itemId:it.id}));});
-      li.addEventListener('dragend',()=>li.classList.remove('dragging'));
-      ul.appendChild(li);
-    });
-    div.appendChild(ul); container.appendChild(div);
+// NEW ITEM INPUT
+function newItemInput(listId){
+  const div=document.createElement('div'); div.className='new-item';
+  const input=document.createElement('input'); input.type='text'; input.placeholder='New item...';
+  input.onkeydown=e=>{if(e.key==='Enter'){addItem(listId,input.value);input.value='';}};
+  div.appendChild(input); return div;
+}
+
+// ADD ITEM
+function addItem(listId,text){
+  if(!text.trim()) return;
+  const l=lists.find(l=>l.id===listId);
+  const newItem = {id:Date.now(),text:text.trim()};
+  l.items.push(newItem);
+
+  if(l.type==='untilCompleted'){
+    const st = getState(l, null);
+    st.completed[newItem.id] = false;
+    st.completedAt = null; // reset completion date when adding new items
+    storage.save("states", states);
+  }
+
+  storage.save("lists",lists);
+  renderLists();
+}
+
+// EDITABLE TEXT / TAP-TO-COMPLETE
+function makeEditableText(obj, prop, list, dateStr){
+  const span=document.createElement('span');
+  span.className='editable-text';
+  span.textContent=obj[prop];
+  let timer,longPress=false;
+
+  const start=e=>{
+    longPress=false;
+    timer=setTimeout(()=>{
+      longPress=true;
+      const input=document.createElement('input');
+      input.type='text';
+      input.value=obj[prop];
+      input.style.width='90%';
+      input.style.border='1px solid #6200ee';
+      input.style.borderRadius='4px';
+      input.style.padding='0.2em 0.3em';
+      const save=()=>{ if(input.value.trim()!==''){obj[prop]=input.value.trim(); storage.save("lists",lists);} renderLists(); };
+      input.onblur=save;
+      input.onkeydown=e=>{if(e.key==='Enter') input.blur();};
+      span.replaceWith(input);
+      input.focus(); input.select();
+    },500);
+  };
+  const cancel=()=>clearTimeout(timer);
+  ['mousedown','touchstart'].forEach(ev=>span.addEventListener(ev,start));
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>span.addEventListener(ev,cancel));
+
+  span.addEventListener('click',()=>{
+    if(!longPress && prop==='text' && list){
+      const st=getState(list,dateStr);
+      st.completed[obj.id] = !st.completed[obj.id];
+      if(list.type==='untilCompleted'){
+        const allCompleted = list.items.length>0 && list.items.every(x => st.completed[x.id]);
+        st.completedAt = allCompleted ? dateStr : null;
+      }
+      storage.save('states',states);
+      renderLists();
+    }
   });
+  return span;
 }
 
-// EDIT ITEM
-function editItem(listId,itemId,span){
-  const l=lists.find(li=>li.id===listId); const it=l.items.find(i=>i.id===itemId);
-  const input=document.createElement('input'); input.value=it.text;
-  input.onblur=()=>{it.text=input.value; storage.save("lists",lists); renderMain();};
-  input.onkeydown=e=>{if(e.key==='Enter'){it.text=input.value; storage.save("lists",lists); renderMain();}};
-  span.replaceWith(input); input.focus();
-}
+// INLINE CREATOR -------------------------------------------------
+const inlineName   = document.getElementById('newListInlineName');
+const inlineOpts   = document.getElementById('newListInlineOptions');
+const inlineType   = document.getElementById('newListInlineType');
+const inlineFuture = document.getElementById('newListInlineFuture');
+const inlineStart  = document.getElementById('newListInlineStart');
+const inlineDays   = document.getElementById('newListInlineDays');
+const daysWrap     = document.getElementById('newListInlineDaysButtons');
 
-// TRASH DROP
-const trash=document.getElementById('trash'); trash.ondragover=e=>e.preventDefault();
-trash.ondrop=e=>{const data=JSON.parse(e.dataTransfer.getData('text/plain')); const list=lists.find(l=>l.id===data.listId); list.items=list.items.filter(i=>i.id!==data.itemId); storage.save("lists",lists); renderMain();}
+// Build day buttons
+(function(){
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach((label,i)=>{
+    const d = document.createElement('div');
+    d.className = 'day-toggle';
+    d.dataset.day = String(i);
+    d.textContent = label;
+    daysWrap.appendChild(d);
+  });
+  document.querySelectorAll('#newListInlineDaysButtons .day-toggle').forEach(btn=>{
+    const toggle=e=>{ e.preventDefault(); btn.classList.toggle('active'); };
+    btn.addEventListener('click', toggle);
+    btn.addEventListener('touchstart', toggle);
+  });
+})();
+
+function openInlineOptions(){
+  if(inlineName.value.trim()==='') return;
+  inlineOpts.style.display = 'block';
+  inlineStart.value = document.getElementById('currentDate').value || todayStr();
+}
+function closeInlineOptions(clear=true){
+  inlineOpts.style.display = 'none';
+  if(clear){
+    inlineName.value='';
+    inlineType.value='once';
+    inlineFuture.style.display='none';
+    inlineDays.style.display='none';
+    document.querySelectorAll('#newListInlineDaysButtons .day-toggle.active')
+      .forEach(b=>b.classList.remove('active'));
+  }
+}
+inlineName.addEventListener('focus', openInlineOptions);
+inlineName.addEventListener('input', openInlineOptions);
+inlineName.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ openInlineOptions(); inlineType.focus(); }
+  if(e.key==='Escape'){ closeInlineOptions(true); }
+});
+inlineType.addEventListener('change', ()=>{
+  const v = inlineType.value;
+  inlineFuture.style.display = (v==='future') ? 'block' : 'none';
+  inlineDays.style.display   = (v==='repeat') ? 'block' : 'none';
+});
+document.getElementById('newListInlineCancel').onclick = ()=> closeInlineOptions(true);
+document.getElementById('newListInlineCreate').onclick = ()=>{
+  const name = inlineName.value.trim();
+  if(!name) return;
+  const type = inlineType.value;
+  const current = document.getElementById('currentDate').value || todayStr();
+  const start  = (type==='future') ? (inlineStart.value || current) : current;
+  const days   = (type==='repeat')
+    ? [...document.querySelectorAll('#newListInlineDaysButtons .day-toggle.active')].map(b=>+b.dataset.day)
+    : null;
+  if(type==='repeat' && (!days || days.length===0)) return showToast('Select repeat days');
+
+  const list={id:Date.now(),name,items:[],start:start,end:(type==='once'?start:null),daysOfWeek:days,type};
+  lists.push(list);
+  storage.save('lists',lists);
+  renderLists();
+
+  // scroll to bottom-most list
+  const all = document.querySelectorAll('#lists .list');
+  if(all.length) all[all.length-1].scrollIntoView({behavior:'smooth', block:'end'});
+
+  closeInlineOptions(true);
+};
+inlineOpts.addEventListener('keydown',(e)=>{
+  if(e.key==='Enter') document.getElementById('newListInlineCreate').click();
+  if(e.key==='Escape') closeInlineOptions(true);
+});
 
 // INIT
-window.onload=function(){document.getElementById('menuDate').value=todayStr(); renderMenu(); renderMain();}
+window.onload=function(){
+  document.getElementById('currentDate').value=todayStr();
+  document.getElementById('currentDate').onchange=renderLists;
+  renderLists();
+};
 </script>
-
 </body>
 </html>
