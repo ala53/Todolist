@@ -1,84 +1,77 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Todo List App</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Todo (Event-Log, Immutable Past)</title>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
-body { font-family: Roboto, sans-serif; margin:0; background:#f0f0f0; }
-header { background:#6200ee; color:#fff; padding:0.5em; display:flex; align-items:center; justify-content:space-between; }
-header input[type=date] { font-size:1em; padding:0.3em; border-radius:4px; border:none; }
+body { font-family: Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif; margin:0; background:#f0f0f0; }
+header { background:#6200ee; color:#fff; padding:0.6em 0.8em; display:flex; align-items:center; gap:0.8em; justify-content:space-between; }
+header .title { font-weight:600; }
+header input[type=date] { font-size:1em; padding:0.3em 0.5em; border-radius:4px; border:none; }
 
 #metrics { margin:1em; height:1.2em; border-radius:10px; background:#ddd; overflow:hidden; }
-#metrics > div { height:100%; border-radius:10px; text-align:right; padding-right:0.5em; color:white; font-weight:bold; line-height:1.2em; }
+#metrics > div { height:100%; border-radius:10px; text-align:right; padding-right:0.5em; color:white; font-weight:600; line-height:1.2em; transition:width .2s ease; }
 
-.list { background:#fff; border-radius:6px; padding:1em; margin:1em 0; border:1px solid #ccc; }
-.list-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5em; }
-.list-header button { border:none; background:none; font-size:1em; cursor:pointer; color:#f44336; }
+main { padding:1em; max-width:800px; margin:0 auto; }
 
-.editable-text { display:inline-block; cursor:pointer; user-select:none; padding:0.2em 0.3em; }
-.completed { text-decoration:line-through; color:gray; }
+.list { background:#fff; border-radius:8px; padding:0.9em; margin:0.8em 0; border:1px solid #ddd; box-shadow:0 1px 2px rgba(0,0,0,.03); }
+.list-header { display:flex; align-items:center; gap:0.6em; }
+.list-header .name { flex:1 1 auto; font-weight:600; cursor:pointer; user-select:none; padding:0.15em 0.25em; border-radius:4px; }
+.list-header .meta { margin-left:auto; color:#555; font-size:0.9em; }
 
-.new-item { border:1px dashed #ccc; padding:0.4em; margin-top:0.4em; border-radius:4px; background:#fafafa; }
+.task { display:flex; align-items:center; gap:0.4em; margin:0.35em 0; }
+.task input[type=checkbox]{ margin-right:0.1em; }
+.task .text { flex:1 1 auto; cursor:pointer; user-select:none; padding:0.15em 0.25em; border-radius:4px; }
+.task .delete-btn{ border:none; background:none; cursor:pointer; font-size:1em; color:#f44336; padding:0.1em 0.2em; }
+
+.new-item { border:1px dashed #ccc; padding:0.5em; margin-top:0.5em; border-radius:6px; background:#fafafa; }
 .new-item input { width:100%; border:none; outline:none; background:transparent; font-size:1em; }
 
 #newListInline { padding-bottom:2em; }
 #newListInlineOptions button { padding:0.4em 0.6em; border:1px solid #6200ee; border-radius:4px; background:#fff; cursor:pointer; }
 
-/* Day toggle buttons */
-.day-toggle {
-  display:inline-block;
-  padding:0.3em 0.5em;
-  border:1px solid #6200ee;
-  border-radius:4px;
-  cursor:pointer;
-  user-select:none;
-  background:#fff;
-  color:#6200ee;
-  transition:background 0.2s, color 0.2s;
-  text-align:center;
-  min-width:2em;
-}
+.day-toggle { display:inline-block; padding:0.25em 0.5em; border:1px solid #6200ee; border-radius:4px; cursor:pointer; user-select:none; background:#fff; color:#6200ee; min-width:2.2em; text-align:center; }
 .day-toggle.active { background:#6200ee; color:#fff; }
-.list-days { margin-top:0.5em; display:flex; flex-wrap:wrap; gap:0.3em; }
-.list-days .day-toggle { border:1px solid #999; background:#eee; color:#333; cursor:default; }
-.list-days .day-toggle.active { background:#6200ee; color:#fff; }
 
-/* Tasks without bullets */
-.task { display:flex; align-items:center; margin-bottom:0.3em; }
-.task input[type=checkbox] { margin-right:0.4em; }
-
-/* Toast notifications */
 #toastContainer { position:fixed; top:1em; left:50%; transform:translateX(-50%); z-index:1000; }
-.toast {
-  background:#f44336; color:white; padding:0.5em 1em; margin-top:0.3em;
-  border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,0.3); opacity:0; transition:opacity 0.3s ease;
-}
+.toast { background:#f44336; color:#fff; padding:0.5em 1em; margin-top:0.3em; border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,.3); opacity:0; transition:opacity .3s ease; }
+
+/* Drag handle (items only) */
+.task .drag-handle { font-size:1.2em; cursor:grab; user-select:none; }
+.task .drag-handle:active { cursor:grabbing; }
+
+/* Visual target during drag */
+.draggable { }
+.drag-over { outline:2px dashed #6200ee; outline-offset:4px; }
 </style>
 </head>
 <body>
 <header>
-  <div>Todo List</div>
-  <input type="date" id="currentDate">
+  <div class="title">Todo</div>
+  <div style="display:flex; align-items:center; gap:0.6em;">
+    <label style="font-size:.95em; opacity:.9;">Date</label>
+    <input type="date" id="currentDate">
+  </div>
 </header>
 
 <div id="metrics"><div style="width:0%;background:#4caf50;">0%</div></div>
 
-<main style="padding:1em">
+<main>
   <div id="lists"></div>
 
-  <!-- Inline New List (bottom of lists) -->
-  <div id="newListInline" style="margin-top:0.6em;">
+  <!-- Inline New List -->
+  <div id="newListInline" style="margin-top:0.8em;">
     <div class="new-item">
       <input type="text" id="newListInlineName" placeholder="New list..." />
     </div>
 
-    <div id="newListInlineOptions" style="display:none; margin-top:0.4em; background:#fff; border:1px solid #ccc; border-radius:6px; padding:0.6em;">
-      <label style="display:block; margin-bottom:0.3em;">
+    <div id="newListInlineOptions" style="display:none; margin-top:0.5em; background:#fff; border:1px solid #ccc; border-radius:8px; padding:0.7em;">
+      <label style="display:block; margin-bottom:0.35em;">
         Type:
         <select id="newListInlineType" style="margin-left:0.4em;">
           <option value="once">One-time</option>
-          <option value="untilCompleted">Until Completed</option>
           <option value="future">Future</option>
           <option value="repeat">Repeats</option>
         </select>
@@ -90,7 +83,7 @@ header input[type=date] { font-size:1em; padding:0.3em; border-radius:4px; borde
 
       <div id="newListInlineDays" style="display:none;">
         <div style="margin-bottom:0.2em;">Repeat on:</div>
-        <div class="list-days" id="newListInlineDaysButtons"></div>
+        <div id="newListInlineDaysButtons"></div>
       </div>
 
       <div style="margin-top:0.6em; display:flex; gap:0.4em;">
@@ -104,16 +97,20 @@ header input[type=date] { font-size:1em; padding:0.3em; border-radius:4px; borde
 <div id="toastContainer"></div>
 
 <script>
-// STORAGE
-const storage={save(k,v){localStorage.setItem(k,JSON.stringify(v));},load(k){try{return JSON.parse(localStorage.getItem(k)||"[]");}catch(e){return[];}}};
-let lists=storage.load("lists"),states=storage.load("states");
+/* ===== UTIL (LOCAL DATE, NO UTC) ===== */
+const storage = {
+  save(k,v){ localStorage.setItem(k, JSON.stringify(v)); },
+  load(k,def){ try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(def)); } catch { return def; } }
+};
+const EVENTS_KEY = 'events';
+let events = storage.load(EVENTS_KEY, []);
 
-// DATE HELPERS
-function formatDate(d){return d.toISOString().slice(0,10);}
-function parseYMDToDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
-function todayStr(){return formatDate(new Date());}
+const pad2 = n => String(n).padStart(2,'0');
+const ymdLocal = (d)=> `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const todayStr = ()=> ymdLocal(new Date());
+const fmt = (d)=> ymdLocal(d);
+const parseYMD = (s)=> { const [y,m,d]=s.split('-').map(Number); return new Date(y, m-1, d); };
 
-// TOAST
 function showToast(message){
   const container=document.getElementById('toastContainer');
   const toast=document.createElement('div');
@@ -124,95 +121,433 @@ function showToast(message){
   setTimeout(()=>{
     toast.style.opacity='0';
     toast.addEventListener('transitionend',()=>toast.remove());
-  },3000);
+  },2200);
 }
 
-// STATE
-function getState(list, dateStr) {
-  const keyDate = list.type==='untilCompleted' ? 'persistent' : dateStr;
-  let st = states.find(s => s.listId===list.id && s.date===keyDate);
-  if(!st) {
-    st = { listId:list.id, date:keyDate, completed:{}, completedAt:null };
-    states.push(st);
-    storage.save("states", states);
-  } else if(st.completedAt===undefined){ // migrate older state
-    st.completedAt = null;
-    storage.save("states", states);
-  }
-  return st;
+function isPastView(){
+  const d = document.getElementById('currentDate').value || todayStr();
+  return d < todayStr();
 }
 
-// ACTIVE?
-function isActive(list, dateObj){
-  const dStr = formatDate(dateObj);
-  if(list.type==='future' && dStr<list.start) return false;
-  if(dStr<list.start) return false;
-  if(list.end && dStr>list.end) return false;
-  if(list.daysOfWeek && !list.daysOfWeek.includes(dateObj.getDay())) return false;
+/* ===== EVENT LOG + SAME-DAY COMPACTION ===== */
+function sortEventsStable(arr){
+  arr.sort((a,b)=>{
+    if (a.effectiveDate<b.effectiveDate) return -1;
+    if (a.effectiveDate>b.effectiveDate) return 1;
+    return a.at - b.at;
+  });
+}
 
-  if(list.type==='untilCompleted') {
-    if(list.items.length===0) return true;
-    const st = getState(list, null);
-    if(st.completedAt && dStr > st.completedAt) return false; // hide only after completion day
+/* IMPORTANT: stamp events with the selected date (not today's). Block past writes. */
+function appendEvent(ev){
+  const selected = document.getElementById('currentDate').value || todayStr();
+  if (selected < todayStr()) { showToast('Cannot modify the past'); return; }
+
+  const e = { ...ev, at: Date.now(), effectiveDate: selected };
+  const day = e.effectiveDate;
+  const arr = events.slice();
+
+  const findLastToday = (pred)=>{
+    for (let i = arr.length-1; i >= 0; i--){
+      const x = arr[i];
+      if (x.effectiveDate !== day) break;
+      if (pred(x)) return i;
+    }
+    return -1;
+  };
+  const del = (indices)=>{
+    indices.sort((a,b)=>a-b).forEach((i,off)=>arr.splice(i-off,1));
+  };
+
+  // Create→Delete (same day)
+  if (e.t==='LIST_DELETE'){
+    const k = findLastToday(x => x.t==='LIST_CREATE' && x.listId===e.listId);
+    if (k !== -1){
+      const after = arr.slice(k+1).filter(x=>x.effectiveDate===day);
+      const intervening = after.some(x=> x.listId===e.listId && x.t!=='LIST_RENAME');
+      if (!intervening){ del([k]); storage.save(EVENTS_KEY, arr); events = arr; return; }
+    }
   }
+
+  // Add→Delete (same day)
+  if (e.t==='ITEM_DELETE'){
+    const k = findLastToday(x => x.t==='ITEM_ADD' && x.listId===e.listId && x.itemId===e.itemId);
+    if (k !== -1){
+      const after = arr.slice(k+1).filter(x=>x.effectiveDate===day);
+      const intervening = after.some(x=> x.listId===e.listId && x.itemId===e.itemId && x.t!=='ITEM_TEXT_SET');
+      if (!intervening){
+        const delIdx=[k];
+        after.forEach((x,i)=>{ if (x.listId===e.listId && x.itemId===e.itemId && x.t==='ITEM_TEXT_SET') delIdx.push(k+1+i); });
+        del(delIdx); storage.save(EVENTS_KEY, arr); events = arr; return;
+      }
+    }
+  }
+
+  // Collapse same-day ITEM_TEXT_SET (or merge into same-day ADD)
+  if (e.t==='ITEM_TEXT_SET'){
+    const rm=[];
+    for (let i=arr.length-1;i>=0;i--){
+      const x=arr[i];
+      if (x.effectiveDate!==day) break;
+      if (x.listId===e.listId && x.itemId===e.itemId && x.t==='ITEM_TEXT_SET') rm.push(i);
+      if (x.listId===e.listId && x.itemId===e.itemId && x.t==='ITEM_ADD'){
+        x.text = e.text; del(rm); storage.save(EVENTS_KEY, arr); events = arr; return;
+      }
+    }
+    if (rm.length) del(rm);
+  }
+
+  // Collapse same-day ITEM_COMPLETE_SET
+  if (e.t==='ITEM_COMPLETE_SET'){
+    const rm=[];
+    for (let i=arr.length-1;i>=0;i--){
+      const x=arr[i];
+      if (x.effectiveDate!==day) break;
+      if (x.listId===e.listId && x.itemId===e.itemId && x.t==='ITEM_COMPLETE_SET') rm.push(i);
+    }
+    if (rm.length) del(rm);
+  }
+
+  // Keep only last same-day order
+  if (e.t==='VISIBLE_ORDER_SET' || e.t==='LIST_ORDER_SET'){
+    const rm=[];
+    for (let i=arr.length-1;i>=0;i--){
+      const x=arr[i];
+      if (x.effectiveDate!==day) break;
+      if ((e.t==='VISIBLE_ORDER_SET' && x.t==='VISIBLE_ORDER_SET' && x.listId===e.listId) ||
+          (e.t==='LIST_ORDER_SET' && x.t==='LIST_ORDER_SET')) rm.push(i);
+    }
+    if (rm.length) del(rm);
+  }
+
+  // Collapse same-day LIST_RENAME
+  if (e.t==='LIST_RENAME'){
+    const j = findLastToday(x => x.t==='LIST_RENAME' && x.listId===e.listId);
+    if (j !== -1) del([j]);
+  }
+
+  arr.push(e);
+  sortEventsStable(arr);
+  storage.save(EVENTS_KEY, arr);
+  events = arr;
+}
+
+/* ===== MATERIALIZE ===== */
+function isActiveListOnDate(list, dateObj){
+  const dStr = fmt(dateObj);
+  if (list.type==='future' && dStr < list.start) return false;
+  if (list.start && dStr < list.start) return false;
+  if (list.end && dStr > list.end) return false;
+  if (list.daysOfWeek && !list.daysOfWeek.includes(dateObj.getDay())) return false;
   return true;
 }
 
-// RENDER
-function renderLists(){
-  const container=document.getElementById('lists');
-  container.innerHTML="";
-  const dateStr=document.getElementById('currentDate').value || todayStr();
-  const dateObj=parseYMDToDate(dateStr);
-  let total=0,done=0;
+function materialize(dateStr){
+  sortEventsStable(events);
 
-  lists.filter(l=>isActive(l,dateObj)).forEach(list=>{
-    const div=document.createElement('div'); div.className='list';
+  const listsMap = new Map();      // id -> list meta
+  const listOrder = [];
+  const itemsByList = new Map();   // listId -> Map(itemId -> {id,text,createdAt,deletedAt})
+  const compEvents = new Map();    // key `${listId}:${itemId}` -> [{date,completed}...]
 
-    const header=document.createElement('div'); header.className='list-header';
-    const nameSpan=makeEditableText(list,'name');
-    header.appendChild(nameSpan);
-    const delBtn=document.createElement('button'); delBtn.textContent="❌";
-    delBtn.onclick=()=>{if(confirm("Delete this list?")){lists=lists.filter(x=>x.id!==list.id);storage.save("lists",lists); renderLists();}};
-    header.appendChild(delBtn);
-    div.appendChild(header);
+  // reduce events up to dateStr (inclusive)
+  for (const e of events){
+    if (e.effectiveDate > dateStr) break;
 
-    list.items.forEach(it=>{
-      const taskDiv=document.createElement('div'); taskDiv.className='task';
-      const cb=document.createElement('input'); cb.type='checkbox';
-      const st = getState(list, dateStr);
-      cb.checked = !!st.completed[it.id];
-      cb.onchange=()=>{
-        st.completed[it.id]=cb.checked;
-        if(list.type==='untilCompleted'){
-          const allCompleted = list.items.length>0 && list.items.every(x => st.completed[x.id]);
-          st.completedAt = allCompleted ? dateStr : null;
+    switch(e.t){
+      case 'LIST_CREATE': {
+        if (!listsMap.has(e.listId)){
+          listsMap.set(e.listId, {
+            id:e.listId, name:e.name||'', type:e.type||'once',
+            start:e.start || e.effectiveDate, end:e.end || null,
+            daysOfWeek: e.daysOfWeek || null
+          });
+          listOrder.push(e.listId);
         }
-        storage.save("states",states);
-        renderLists();
+        break;
+      }
+      case 'LIST_RENAME': {
+        const l = listsMap.get(e.listId); if (l) l.name = e.name;
+        break;
+      }
+      case 'LIST_DELETE': {
+        listsMap.delete(e.listId);
+        const idx = listOrder.indexOf(e.listId); if (idx>-1) listOrder.splice(idx,1);
+        itemsByList.delete(e.listId);
+        for (const k of [...compEvents.keys()]) if (k.startsWith(e.listId+':')) compEvents.delete(k);
+        break;
+      }
+      case 'LIST_ORDER_SET': {
+        const filtered = e.order.filter(id=>listsMap.has(id));
+        if (filtered.length) { listOrder.length = 0; listOrder.push(...filtered); }
+        break;
+      }
+      case 'ITEM_ADD': {
+        if (!listsMap.has(e.listId)) break;
+        const map = itemsByList.get(e.listId) || new Map();
+        map.set(e.itemId, { id:e.itemId, text:e.text||'', createdAt:e.effectiveDate, deletedAt:null });
+        itemsByList.set(e.listId, map);
+        break;
+      }
+      case 'ITEM_TEXT_SET': {
+        const map = itemsByList.get(e.listId); if (!map) break;
+        const it = map.get(e.itemId); if (it) it.text = e.text;
+        break;
+      }
+      case 'ITEM_DELETE': {
+        const map = itemsByList.get(e.listId); if (!map) break;
+        const it = map.get(e.itemId); if (it) it.deletedAt = e.effectiveDate;
+        break;
+      }
+      case 'ITEM_COMPLETE_SET': {
+        const key = `${e.listId}:${e.itemId}`;
+        const arr = compEvents.get(key) || [];
+        arr.push({ date:e.effectiveDate, completed:!!e.completed });
+        compEvents.set(key, arr);
+        break;
+      }
+      case 'VISIBLE_ORDER_SET': {
+        const l = listsMap.get(e.listId); if (!l) break;
+        if (!l._reorders) l._reorders = [];
+        l._reorders.push({ date:e.effectiveDate, order:e.order.slice() });
+        break;
+      }
+    }
+  }
+
+  const mats = listOrder.map(id=>listsMap.get(id)).filter(Boolean);
+
+  for (const l of mats){
+    const map = itemsByList.get(l.id) || new Map();
+    let items = Array.from(map.values()).sort((a,b)=> (a.createdAt<b.createdAt?-1: a.createdAt>b.createdAt?1: a.id-b.id));
+
+    if (l._reorders){
+      for (const r of l._reorders){
+        if (r.date > dateStr) continue;
+        const visibleSet = new Set();
+        const visible = items.filter(x=>{
+          const ca=x.createdAt||'0000-00-00', da=x.deletedAt||'9999-12-31';
+          const v = ca <= r.date && r.date < da;
+          if (v) visibleSet.add(x.id);
+          return v;
+        });
+        const visById = new Map(visible.map(x=>[x.id,x]));
+        const orderedVis = r.order.map(id=>visById.get(+id)||visById.get(id)).filter(Boolean);
+        const nonVis = items.filter(x=>!visibleSet.has(x.id));
+        items = orderedVis.concat(nonVis);
+      }
+    }
+
+    l.items = items.filter(it=>{
+      const ca=it.createdAt||'0000-00-00', da=it.deletedAt||'9999-12-31';
+      return ca <= dateStr && dateStr < da;
+    });
+
+    delete l._reorders;
+  }
+
+  const completed = {};
+  for (const l of mats){
+    for (const it of l.items){
+      const key = `${l.id}:${it.id}`;
+      const arr = compEvents.get(key) || [];
+      if (l.type === 'untilCompleted'){
+        let val = false;
+        for (const e of arr){ if (e.date <= dateStr) val = e.completed; }
+        completed[it.id] = !!val;
+      } else {
+        const sameDay = arr.filter(e=>e.date === dateStr);
+        completed[it.id] = sameDay.length ? sameDay[sameDay.length-1].completed : false;
+      }
+    }
+  }
+
+  const dateObj = parseYMD(dateStr);
+  const activeLists = mats.filter(l=>isActiveListOnDate(l, dateObj));
+
+  return { lists: activeLists, completed };
+}
+
+/* ===== DND HELPERS ===== */
+function moveInArray(arr, from, to){
+  if(from===to) return;
+  const x = arr.splice(from,1)[0];
+  arr.splice(to,0,x);
+}
+
+/* Drag & drop with optional handle. If handleSelector is provided, only that element starts drag. */
+function enableDragSort(container, itemSelector, onMoveIndex, handleSelector=null){
+  let dragSrcIdx = null;
+
+  const getItems = () => Array.from(container.querySelectorAll(itemSelector));
+
+  getItems().forEach((el)=>{
+    el.classList.add('draggable');
+
+    const startDrag = (e)=>{
+      dragSrcIdx = getItems().indexOf(el);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', ''); // Firefox requirement
+    };
+    if (handleSelector){
+      const handle = el.querySelector(handleSelector);
+      if (handle){
+        handle.setAttribute('draggable', 'true');
+        handle.addEventListener('dragstart', startDrag);
+        handle.addEventListener('dragend', ()=>{
+          dragSrcIdx = null;
+          getItems().forEach(n=>n.classList.remove('drag-over'));
+        });
+      }
+    } else {
+      el.setAttribute('draggable', 'true');
+      el.addEventListener('dragstart', startDrag);
+      el.addEventListener('dragend', ()=>{
+        dragSrcIdx = null;
+        getItems().forEach(n=>n.classList.remove('drag-over'));
+      });
+    }
+
+    el.addEventListener('dragover', (e)=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', ()=> el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const to = getItems().indexOf(el);
+      if (Number.isInteger(dragSrcIdx) && dragSrcIdx !== to) onMoveIndex(dragSrcIdx, to);
+    });
+  });
+}
+
+/* ===== UI ===== */
+const elLists = document.getElementById('lists');
+
+function render(){
+  const dateStr = document.getElementById('currentDate').value || todayStr();
+  const { lists, completed } = materialize(dateStr);
+
+  elLists.innerHTML = '';
+  let total=0, done=0;
+
+  lists.forEach((list)=>{
+    const card = document.createElement('div');
+    card.className='list';
+    card.dataset.listId = list.id;
+
+    // header
+    const header = document.createElement('div');
+    header.className='list-header';
+
+    const name = document.createElement('span'); name.className='name'; name.textContent=list.name;
+    name.title='Long-press to rename';
+
+    // rename (long-press; disabled on past)
+    let timer;
+    const start=()=>{
+      timer=setTimeout(()=>{
+        if (isPastView()) return;
+        const input=document.createElement('input'); input.type='text'; input.value=list.name; input.style.width='100%';
+        const save=()=>{
+          const v=input.value.trim();
+          if(v && v!==list.name) appendEvent({ t:'LIST_RENAME', listId:list.id, name:v });
+          render();
+        };
+        input.onblur=save; input.onkeydown=e=>{ if(e.key==='Enter') input.blur(); };
+        name.replaceWith(input); input.focus(); input.select();
+      }, 500);
+    };
+    const cancel=()=>clearTimeout(timer);
+    ['mousedown','touchstart'].forEach(ev=>name.addEventListener(ev,start));
+    ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>name.addEventListener(ev,cancel));
+    header.appendChild(name);
+
+    // meta
+    const meta = document.createElement('div'); meta.className='meta';
+    meta.textContent =
+      (list.type==='repeat')
+        ? 'Repeats: ' + (list.daysOfWeek||[]).map(i=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]).join(' ')
+        : (list.type==='future' ? `Starts ${list.start}` : 'One-time');
+    header.appendChild(meta);
+
+    const delBtn=document.createElement('button'); delBtn.title='Delete list'; delBtn.textContent='❌';
+    delBtn.onclick=()=>{ if(isPastView()) return; if(confirm('Delete this list?')) { appendEvent({ t:'LIST_DELETE', listId:list.id }); render(); } };
+    header.appendChild(delBtn);
+
+    card.appendChild(header);
+
+    // tasks
+    list.items.forEach((it)=>{
+      const row = document.createElement('div'); row.className='task'; row.dataset.itemId = it.id;
+
+      const cb=document.createElement('input'); cb.type='checkbox';
+      cb.checked = !!completed[it.id];
+      cb.onchange=()=>{
+        if (isPastView()) { cb.checked = !cb.checked; return; }
+        appendEvent({ t:'ITEM_COMPLETE_SET', listId:list.id, itemId:it.id, completed:cb.checked });
+        render();
       };
-      taskDiv.appendChild(cb);
-      taskDiv.appendChild(makeEditableText(it,'text',list,dateStr));
-      div.appendChild(taskDiv);
+      row.appendChild(cb);
+
+      const text = document.createElement('span'); text.className='text'; text.textContent=it.text; text.title='Tap to toggle; long-press to edit';
+      text.addEventListener('click', ()=>{
+        if (isPastView()) return;
+        appendEvent({ t:'ITEM_COMPLETE_SET', listId:list.id, itemId:it.id, completed:!cb.checked });
+        render();
+      });
+      // long-press edit (disabled on past)
+      let tmr;
+      const startEdit=()=>{
+        tmr=setTimeout(()=>{
+          if (isPastView()) return;
+          const input=document.createElement('input'); input.type='text'; input.value=it.text; input.style.width='100%';
+          const save=()=>{
+            const v=input.value.trim();
+            if (v && v!==it.text) appendEvent({ t:'ITEM_TEXT_SET', listId:list.id, itemId:it.id, text:v });
+            render();
+          };
+          input.onblur=save; input.onkeydown=e=>{ if(e.key==='Enter') input.blur(); };
+          text.replaceWith(input); input.focus(); input.select();
+        }, 500);
+      };
+      const cancelEdit=()=>clearTimeout(tmr);
+      ['mousedown','touchstart'].forEach(ev=>text.addEventListener(ev,startEdit));
+      ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>text.addEventListener(ev,cancelEdit));
+      row.appendChild(text);
+
+      if(!isPastView()){
+        // drag handle (only this starts dragging)
+        const handle = document.createElement('span');
+        handle.className = 'material-icons drag-handle';
+        handle.title = 'Drag to reorder';
+        handle.textContent = 'drag_indicator';
+        row.appendChild(handle);
+
+        const delItem=document.createElement('button');
+        delItem.className='delete-btn'; delItem.title='Delete item'; delItem.textContent='🗑️';
+        delItem.onclick=()=>{ if(confirm('Delete this item?')) { appendEvent({ t:'ITEM_DELETE', listId:list.id, itemId:it.id }); render(); } };
+        row.appendChild(delItem);
+      }
+
+      card.appendChild(row);
       total++; if(cb.checked) done++;
     });
 
-    if(dateStr>=todayStr()) div.appendChild(newItemInput(list.id));
-
-    if(list.type==='repeat' && list.daysOfWeek && list.daysOfWeek.length>0){
-      const dayContainer=document.createElement('div'); dayContainer.className='list-days';
-      for(let i=0;i<7;i++){
-        const dayDiv=document.createElement('div'); dayDiv.className='day-toggle';
-        dayDiv.textContent=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i];
-        if(list.daysOfWeek.includes(i)) dayDiv.classList.add('active');
-        dayContainer.appendChild(dayDiv);
-      }
-      div.appendChild(dayContainer);
+    if(!isPastView()){
+      const add = document.createElement('div'); add.className='new-item';
+      const inp = document.createElement('input'); inp.type='text'; inp.placeholder='New item...';
+      inp.onkeydown=(e)=>{ if(e.key==='Enter'){ const v=inp.value.trim(); if(!v) return; appendEvent({ t:'ITEM_ADD', listId:list.id, itemId:Date.now(), text:v }); inp.value=''; render(); } };
+      add.appendChild(inp);
+      card.appendChild(add);
     }
 
-    container.appendChild(div);
+    elLists.appendChild(card);
   });
 
+  // metrics
   const pct = total?Math.round(done/total*100):0;
   const metricDiv = document.querySelector('#metrics > div');
   metricDiv.style.width = pct + '%';
@@ -220,79 +555,36 @@ function renderLists(){
   if(pct<50) metricDiv.style.background='#f44336';
   else if(pct<80) metricDiv.style.background='#ff9800';
   else metricDiv.style.background='#4caf50';
-}
 
-// NEW ITEM INPUT
-function newItemInput(listId){
-  const div=document.createElement('div'); div.className='new-item';
-  const input=document.createElement('input'); input.type='text'; input.placeholder='New item...';
-  input.onkeydown=e=>{if(e.key==='Enter'){addItem(listId,input.value);input.value='';}};
-  div.appendChild(input); return div;
-}
-
-// ADD ITEM
-function addItem(listId,text){
-  if(!text.trim()) return;
-  const l=lists.find(l=>l.id===listId);
-  const newItem = {id:Date.now(),text:text.trim()};
-  l.items.push(newItem);
-
-  if(l.type==='untilCompleted'){
-    const st = getState(l, null);
-    st.completed[newItem.id] = false;
-    st.completedAt = null; // reset completion date when adding new items
-    storage.save("states", states);
-  }
-
-  storage.save("lists",lists);
-  renderLists();
-}
-
-// EDITABLE TEXT / TAP-TO-COMPLETE
-function makeEditableText(obj, prop, list, dateStr){
-  const span=document.createElement('span');
-  span.className='editable-text';
-  span.textContent=obj[prop];
-  let timer,longPress=false;
-
-  const start=e=>{
-    longPress=false;
-    timer=setTimeout(()=>{
-      longPress=true;
-      const input=document.createElement('input');
-      input.type='text';
-      input.value=obj[prop];
-      input.style.width='90%';
-      input.style.border='1px solid #6200ee';
-      input.style.borderRadius='4px';
-      input.style.padding='0.2em 0.3em';
-      const save=()=>{ if(input.value.trim()!==''){obj[prop]=input.value.trim(); storage.save("lists",lists);} renderLists(); };
-      input.onblur=save;
-      input.onkeydown=e=>{if(e.key==='Enter') input.blur();};
-      span.replaceWith(input);
-      input.focus(); input.select();
-    },500);
-  };
-  const cancel=()=>clearTimeout(timer);
-  ['mousedown','touchstart'].forEach(ev=>span.addEventListener(ev,start));
-  ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>span.addEventListener(ev,cancel));
-
-  span.addEventListener('click',()=>{
-    if(!longPress && prop==='text' && list){
-      const st=getState(list,dateStr);
-      st.completed[obj.id] = !st.completed[obj.id];
-      if(list.type==='untilCompleted'){
-        const allCompleted = list.items.length>0 && list.items.every(x => st.completed[x.id]);
-        st.completedAt = allCompleted ? dateStr : null;
-      }
-      storage.save('states',states);
-      renderLists();
+  // DnD only for today/future
+  if(!isPastView()){
+    // list drag (entire list card is draggable)
+    const listCards = Array.from(elLists.querySelectorAll('.list'));
+    if (listCards.length>1){
+      enableDragSort(elLists, '.list', (from,to)=>{
+        const ids = listCards.map(x=>x.dataset.listId);
+        moveInArray(ids, from, to);
+        appendEvent({ t:'LIST_ORDER_SET', order: ids });
+        render();
+      });
     }
-  });
-  return span;
+    // item drag per list, via handle
+    Array.from(elLists.querySelectorAll('.list')).forEach(listCard=>{
+      const listId = listCard.dataset.listId;
+      const items = listCard.querySelectorAll('.task');
+      if(items.length>1){
+        enableDragSort(listCard, '.task', (from,to)=>{
+          const ordered = Array.from(listCard.querySelectorAll('.task')).map(x=>+x.dataset.itemId);
+          moveInArray(ordered, from, to);
+          appendEvent({ t:'VISIBLE_ORDER_SET', listId, order: ordered });
+          render();
+        }, '.drag-handle');
+      }
+    });
+  }
 }
 
-// INLINE CREATOR -------------------------------------------------
+/* ===== NEW LIST INLINE CREATOR ===== */
 const inlineName   = document.getElementById('newListInlineName');
 const inlineOpts   = document.getElementById('newListInlineOptions');
 const inlineType   = document.getElementById('newListInlineType');
@@ -301,16 +593,17 @@ const inlineStart  = document.getElementById('newListInlineStart');
 const inlineDays   = document.getElementById('newListInlineDays');
 const daysWrap     = document.getElementById('newListInlineDaysButtons');
 
-// Build day buttons
-(function(){
+(function buildDayButtons(){
+  const frag = document.createDocumentFragment();
   ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach((label,i)=>{
     const d = document.createElement('div');
     d.className = 'day-toggle';
     d.dataset.day = String(i);
     d.textContent = label;
-    daysWrap.appendChild(d);
+    frag.appendChild(d);
   });
-  document.querySelectorAll('#newListInlineDaysButtons .day-toggle').forEach(btn=>{
+  daysWrap.appendChild(frag);
+  daysWrap.querySelectorAll('.day-toggle').forEach(btn=>{
     const toggle=e=>{ e.preventDefault(); btn.classList.toggle('active'); };
     btn.addEventListener('click', toggle);
     btn.addEventListener('touchstart', toggle);
@@ -323,14 +616,13 @@ function openInlineOptions(){
   inlineStart.value = document.getElementById('currentDate').value || todayStr();
 }
 function closeInlineOptions(clear=true){
-  inlineOpts.style.display = 'none';
+  inlineOpts.style.display='none';
   if(clear){
     inlineName.value='';
     inlineType.value='once';
     inlineFuture.style.display='none';
     inlineDays.style.display='none';
-    document.querySelectorAll('#newListInlineDaysButtons .day-toggle.active')
-      .forEach(b=>b.classList.remove('active'));
+    daysWrap.querySelectorAll('.day-toggle.active').forEach(b=>b.classList.remove('active'));
   }
 }
 inlineName.addEventListener('focus', openInlineOptions);
@@ -340,31 +632,25 @@ inlineName.addEventListener('keydown', (e)=>{
   if(e.key==='Escape'){ closeInlineOptions(true); }
 });
 inlineType.addEventListener('change', ()=>{
-  const v = inlineType.value;
+  const v=inlineType.value;
   inlineFuture.style.display = (v==='future') ? 'block' : 'none';
   inlineDays.style.display   = (v==='repeat') ? 'block' : 'none';
 });
 document.getElementById('newListInlineCancel').onclick = ()=> closeInlineOptions(true);
 document.getElementById('newListInlineCreate').onclick = ()=>{
-  const name = inlineName.value.trim();
-  if(!name) return;
+  const name = inlineName.value.trim(); if(!name) return;
   const type = inlineType.value;
   const current = document.getElementById('currentDate').value || todayStr();
   const start  = (type==='future') ? (inlineStart.value || current) : current;
-  const days   = (type==='repeat')
-    ? [...document.querySelectorAll('#newListInlineDaysButtons .day-toggle.active')].map(b=>+b.dataset.day)
-    : null;
-  if(type==='repeat' && (!days || days.length===0)) return showToast('Select repeat days');
+  const days   = (type==='repeat') ? [...daysWrap.querySelectorAll('.day-toggle.active')].map(b=>+b.dataset.day) : null;
+  if(type==='repeat' && (!days || !days.length)) return showToast('Select repeat days');
 
-  const list={id:Date.now(),name,items:[],start:start,end:(type==='once'?start:null),daysOfWeek:days,type};
-  lists.push(list);
-  storage.save('lists',lists);
-  renderLists();
+  const listId = 'L' + Date.now();
+  appendEvent({ t:'LIST_CREATE', listId, name, start, end:(type==='once'?start:null), daysOfWeek:days, type });
+  render();
 
-  // scroll to bottom-most list
   const all = document.querySelectorAll('#lists .list');
   if(all.length) all[all.length-1].scrollIntoView({behavior:'smooth', block:'end'});
-
   closeInlineOptions(true);
 };
 inlineOpts.addEventListener('keydown',(e)=>{
@@ -372,11 +658,21 @@ inlineOpts.addEventListener('keydown',(e)=>{
   if(e.key==='Escape') closeInlineOptions(true);
 });
 
-// INIT
-window.onload=function(){
-  document.getElementById('currentDate').value=todayStr();
-  document.getElementById('currentDate').onchange=renderLists;
-  renderLists();
+/* ===== INIT ===== */
+window.onload = function(){
+  if (!document.getElementById('currentDate').value) {
+    document.getElementById('currentDate').value = todayStr();
+  }
+  document.getElementById('currentDate').onchange = render;
+
+  // seed if empty
+  if (events.length===0){
+    const listId = 'L' + Date.now();
+    appendEvent({ t:'LIST_CREATE', listId, name:'My Tasks', start: todayStr(), end: null, daysOfWeek:null, type:'once' });
+    appendEvent({ t:'ITEM_ADD', listId, itemId: Date.now()+1, text:'Try checking me' });
+  }
+
+  render();
 };
 </script>
 </body>
